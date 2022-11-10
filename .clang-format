@@ -1,0 +1,15 @@
+---
+BasedOnStyle: WebKit
+
+TabWidth: 4
+PPIndentWidth: 2
+IndentCaseLabels: true
+IndentPPDirectives: AfterHash
+NamespaceIndentation: All
+AlignAfterOpenBracket: BlockIndent
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+UseTab: Never
+UseCRLF: false
+
+---
