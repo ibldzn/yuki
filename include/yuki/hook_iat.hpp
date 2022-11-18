@@ -51,6 +51,11 @@ namespace yuki {
             return false;
         }
 
+        m_original = Module::find_module(m_mod_hash).get_proc_addr(m_api_hash);
+        if (!m_original) {
+            return false;
+        }
+
         const Pointer target_mod_base = target_mod.get();
 
         for (
@@ -70,18 +75,10 @@ namespace yuki {
                 continue;
             }
 
-            const Module mod = Module::find_module(hash);
-            const auto mod_nt = mod.get_nt_headers();
-            // module should've been loaded by the PE loader by now.
-            // pretty unnecessary but better than a random segfault.
-            if (!mod_nt) [[YUKI_ATTR_UNLIKELY]] {
-                return false;
-            }
-
             IMAGE_THUNK_DATA* original_first_thunk = target_mod_base.offset(import_desc->OriginalFirstThunk).as<IMAGE_THUNK_DATA*>();
             IMAGE_THUNK_DATA* first_thunk = target_mod_base.offset(import_desc->FirstThunk).as<IMAGE_THUNK_DATA*>();
             if (!original_first_thunk || !first_thunk) [[YUKI_ATTR_UNLIKELY]] {
-                continue;
+                return false;
             }
 
             for (; original_first_thunk->u1.AddressOfData; ++original_first_thunk, ++first_thunk) {
@@ -98,17 +95,7 @@ namespace yuki {
                     continue;
                 }
 
-                const auto mod_base = mod.get();
-                const auto mod_end = mod_base.offset(mod_nt->OptionalHeader.SizeOfImage);
-                if (
-                    first_thunk->u1.Function < mod_base.as<std::uintptr_t>()
-                    || first_thunk->u1.Function >= mod_end.as<std::uintptr_t>()
-                ) {
-                    return false;
-                }
-
                 m_thunk_data = first_thunk;
-                m_original = first_thunk->u1.Function;
 
                 if (const auto protect = ScopedProtect { &first_thunk->u1.Function, sizeof(decltype(first_thunk->u1.Function)), ProtFlags::RW }) {
                     first_thunk->u1.Function = new_func.as<decltype(first_thunk->u1.Function)>();
