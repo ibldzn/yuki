@@ -180,7 +180,7 @@ namespace yuki {
 
             // handle forwarded export
             if (proc_addr >= exp_base.as<std::uintptr_t>() && proc_addr < exp_base.offset(exp_dir->Size).as<std::uintptr_t>()) {
-                const std::string_view forward_str = Pointer { proc_addr }.as<const char*>();
+                const std::string_view forward_str = reinterpret_cast<const char*>(proc_addr);
                 const std::size_t dot_index = forward_str.find('.');
 
                 if (dot_index != std::string_view::npos) [[YUKI_ATTR_LIKELY]] {
