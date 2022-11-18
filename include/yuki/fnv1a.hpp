@@ -62,6 +62,6 @@ namespace yuki {
     using fnv1a = fnv1a32;
 #endif
 
-#define FNV_CT(str) ([&] { constexpr auto res = yuki::fnv1a::get(str); return res; }())
+#define FNV_CT(str) ([] { constexpr auto res = yuki::fnv1a::get(str); return res; }())
 #define FNV_RT(str) (yuki::fnv1a::get(str))
 }
