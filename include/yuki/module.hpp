@@ -58,6 +58,9 @@ namespace yuki {
         static PEB* get_peb();
 
     private:
+        static Pointer handle_forwarded_export(Pointer export_addr);
+
+    private:
         Pointer m_base_address = nullptr;
     };
 
@@ -180,47 +183,11 @@ namespace yuki {
             const auto proc_addr = m_base_address.offset(funcs[ord]).as<std::uintptr_t>();
 
             // handle forwarded export
-            if (proc_addr >= exp_base.as<std::uintptr_t>() && proc_addr < exp_base.offset(exp_dir->Size).as<std::uintptr_t>()) {
-                const std::string_view forward_str = reinterpret_cast<const char*>(proc_addr);
-                const std::size_t dot_index = forward_str.find('.');
-
-                if (dot_index != std::string_view::npos) [[YUKI_ATTR_LIKELY]] {
-                    const std::string_view forward_module_name = forward_str.substr(0, dot_index);
-                    const std::string_view forward_proc_name = forward_str.substr(dot_index + 1);
-
-                    const auto forward_module_name_hash = fnv1a::get_with(
-                        forward_module_name,
-                        [](byte b) -> byte {
-                            return b >= 'A' && b <= 'Z' ? (b | (1 << 5)) : b;
-                        }
-                    );
-
-                    Module forward_module { nullptr };
-
-                    enum_modules([&](std::string_view mod_name, Pointer mod_address) {
-                        if (const std::size_t dot_index = mod_name.find_last_of('.'); dot_index != std::string_view::npos) [[YUKI_ATTR_LIKELY]] {
-                            mod_name = mod_name.substr(0, dot_index);
-                        }
-
-                        const auto hash = fnv1a::get_with(
-                            mod_name,
-                            [](byte b) -> byte {
-                                return b >= 'A' && b <= 'Z' ? (b | (1 << 5)) : b;
-                            }
-                        );
-
-                        if (forward_module_name_hash == hash) {
-                            forward_module = mod_address;
-                            return true;
-                        }
-
-                        return false;
-                    });
-
-                    if (forward_module) {
-                        return forward_module.get_proc_addr(FNV_RT(forward_proc_name));
-                    }
-                }
+            if (
+                proc_addr >= exp_base.as<std::uintptr_t>()
+                && proc_addr < exp_base.offset(exp_dir->Size).as<std::uintptr_t>()
+            ) {
+                return handle_forwarded_export(proc_addr);
             }
 
             return proc_addr;
@@ -323,5 +290,55 @@ namespace yuki {
             return nullptr;
         }
         return teb->ProcessEnvironmentBlock;
+    }
+
+    YUKI_FORCE_INLINE Pointer Module::handle_forwarded_export(Pointer export_addr)
+    {
+        const std::string_view forward_str = export_addr.as<const char*>();
+        const std::size_t dot_index = forward_str.find('.');
+
+        if (dot_index == std::string_view::npos) [[YUKI_ATTR_UNLIKELY]] {
+            // unlikely to happen
+            // if it does happen then just return whatever is from the forwarder
+            return export_addr;
+        }
+
+        const std::string_view forward_module_name = forward_str.substr(0, dot_index);
+        const std::string_view forward_proc_name = forward_str.substr(dot_index + 1);
+
+        const auto forward_module_name_hash = fnv1a::get_with(
+            forward_module_name,
+            [](byte b) -> byte {
+                return b >= 'A' && b <= 'Z' ? (b | (1 << 5)) : b;
+            }
+        );
+
+        Module forward_module { nullptr };
+
+        enum_modules([&](std::string_view mod_name, Pointer mod_address) {
+            if (const std::size_t dot_index = mod_name.find_last_of('.'); dot_index != std::string_view::npos) [[YUKI_ATTR_LIKELY]] {
+                mod_name = mod_name.substr(0, dot_index);
+            }
+
+            const auto hash = fnv1a::get_with(
+                mod_name,
+                [](byte b) -> byte {
+                    return b >= 'A' && b <= 'Z' ? (b | (1 << 5)) : b;
+                }
+            );
+
+            if (forward_module_name_hash == hash) {
+                forward_module = mod_address;
+                return true;
+            }
+
+            return false;
+        });
+
+        if (!forward_module) {
+            return nullptr;
+        }
+
+        return forward_module.get_proc_addr(FNV_RT(forward_proc_name));
     }
 }
