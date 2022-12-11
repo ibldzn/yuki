@@ -8,10 +8,14 @@
 #  define YUKI_ARCH_X86
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
-#  define YUKI_FORCE_INLINE __attribute__((always_inline)) inline
-#elif defined(_MSC_VER)
-#  define YUKI_FORCE_INLINE __pragma(warning(suppress : 4714)) __forceinline
+#if !defined(YUKI_DONT_FORCE_INLINE)
+#  if defined(__GNUC__) || defined(__clang__)
+#    define YUKI_FORCE_INLINE __attribute__((always_inline)) inline
+#  elif defined(_MSC_VER)
+#    define YUKI_FORCE_INLINE __pragma(warning(suppress : 4714)) __forceinline
+#  else
+#    define YUKI_FORCE_INLINE inline
+#  endif
 #else
 #  define YUKI_FORCE_INLINE inline
 #endif
