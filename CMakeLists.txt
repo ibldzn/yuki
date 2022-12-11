@@ -17,6 +17,8 @@ add_executable(${PROJECT_NAME}
   src/main.cpp
 )
 
+add_subdirectory(libs)
+
 set_target_properties(${PROJECT_NAME} PROPERTIES
   USE_FOLDERS               ON
   CXX_EXTENSIONS            OFF
@@ -26,6 +28,9 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_compile_options(${PROJECT_NAME} PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:/W4>
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wconversion -Wpedantic>
+)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  minhook
 )
 
 if(ENABLE_LTO)
