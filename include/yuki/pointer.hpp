@@ -28,6 +28,10 @@ namespace yuki {
         Pointer relative() const;
         constexpr Pointer offset(std::ptrdiff_t val) const;
 
+        template <typename Fn>
+        constexpr Pointer get_or_else(Fn fn) const;
+        constexpr Pointer get_or(Pointer pointer) const;
+
         template <typename T>
         T as() const;
 
@@ -75,6 +79,23 @@ namespace yuki {
     YUKI_FORCE_INLINE constexpr Pointer Pointer::offset(std::ptrdiff_t val) const
     {
         return m_ptr + static_cast<std::uintptr_t>(val);
+    }
+
+    template <typename Fn>
+    constexpr Pointer Pointer::get_or_else(Fn fn) const
+    {
+        if (!m_ptr) {
+            return fn();
+        }
+        return m_ptr;
+    }
+
+    constexpr Pointer Pointer::get_or(Pointer pointer) const
+    {
+        if (!m_ptr) {
+            return pointer;
+        }
+        return m_ptr;
     }
 
     template <typename T>
