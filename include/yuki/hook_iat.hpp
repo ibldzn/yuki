@@ -41,7 +41,7 @@ namespace yuki {
 
     inline bool IATHook::apply(fnv1a::type target_mod_hash, Pointer new_func)
     {
-        const auto target_mod = Module::find_module(target_mod_hash);
+        const auto target_mod = Module::find(target_mod_hash);
         if (!target_mod) {
             return false;
         }
@@ -51,7 +51,7 @@ namespace yuki {
             return false;
         }
 
-        m_original = Module::find_module(m_mod_hash).get_proc_addr(m_api_hash);
+        m_original = Module::find(m_mod_hash).get_proc_addr(m_api_hash);
         if (!m_original) {
             return false;
         }

@@ -51,8 +51,9 @@ namespace yuki {
 
         template <typename Fn>
         static void enum_modules(Fn fn);
-        static Module find_module(std::string_view module_name, bool lowercase = true);
-        static Module find_module(fnv1a::type module_name_hash, bool lowercase = true);
+        static Module find(std::string_view module_name, bool lowercase = true);
+        static Module find(fnv1a::type module_name_hash, bool lowercase = true);
+        static Module find_or_load(const char* module_name, bool lowercase = true);
 
         static PEB* get_peb();
 
@@ -261,12 +262,12 @@ namespace yuki {
         }
     }
 
-    YUKI_FORCE_INLINE Module Module::find_module(std::string_view module_name, bool lowercase)
+    YUKI_FORCE_INLINE Module Module::find(std::string_view module_name, bool lowercase)
     {
-        return find_module(FNV_RT(lowercase ? to_ascii_lowercase(module_name) : module_name), lowercase);
+        return find(FNV_RT(lowercase ? to_ascii_lowercase(module_name) : module_name), lowercase);
     }
 
-    YUKI_FORCE_INLINE Module Module::find_module(fnv1a::type module_name_hash, bool lowercase)
+    YUKI_FORCE_INLINE Module Module::find(fnv1a::type module_name_hash, bool lowercase)
     {
         if (module_name_hash == 0) {
             const PEB* peb = get_peb();
@@ -298,6 +299,21 @@ namespace yuki {
         });
 
         return ret;
+    }
+
+    YUKI_FORCE_INLINE Module Module::find_or_load(const char* module_name, bool lowercase)
+    {
+        // clang-format off
+        static const auto load_library_a =
+            Module::find(FNV_CT("kernel32.dll"))
+                .get_proc_addr(FNV_CT("LoadLibraryA"))
+                .get_or(reinterpret_cast<void*>(LoadLibraryA))
+                .as<decltype(&LoadLibraryA)>();
+        // clang-format on
+
+        return find(module_name, lowercase)
+            .get()
+            .get_or_else([&] { return Pointer(load_library_a(module_name)); });
     }
 
     YUKI_FORCE_INLINE PEB* Module::get_peb()
