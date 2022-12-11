@@ -63,7 +63,7 @@ namespace yuki {
         const char* path_name = nullptr;
     };
 
-    bool iter_proc_maps(int (*callback)(RegionInfo*, void*), void* data);
+    bool iter_proc_maps(bool (*callback)(RegionInfo*, void*), void* data);
 #endif
 
     inline std::size_t page_size()
@@ -106,7 +106,7 @@ namespace yuki {
 
         inline bool prot_query_callback(RegionInfo* region, void* data)
         {
-            prot_query* query = static_cast<ProtQuery*>(data);
+            ProtQuery* query = static_cast<ProtQuery*>(data);
 
             if ((query->address >= region->start) && (query->address < region->end)) {
                 query->result = to_prot_flags(region->prot);
@@ -129,7 +129,7 @@ namespace yuki {
 
         return ProtFlags::INVALID;
 #elif defined(__unix__)
-        internal::prot_query query = {};
+        internal::ProtQuery query = {};
         query.address = address.as<std::uintptr_t>();
 
         if (iter_proc_maps(&internal::prot_query_callback, &query)) {
@@ -165,7 +165,7 @@ namespace yuki {
     }
 
 #if defined(__unix__)
-    inline bool iter_proc_maps(int (*callback)(RegionInfo*, void*), void* data)
+    inline bool iter_proc_maps(bool (*callback)(RegionInfo*, void*), void* data)
     {
         std::unique_ptr<FILE, decltype(&fclose)> maps { std::fopen("/proc/self/maps", "r"), &fclose };
 
@@ -174,7 +174,7 @@ namespace yuki {
         if (maps) {
             char buffer[256];
 
-            region_info region;
+            RegionInfo region;
 
             char perms[5];
             char pathname[256];
