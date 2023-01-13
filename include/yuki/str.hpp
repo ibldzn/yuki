@@ -31,6 +31,8 @@ namespace yuki {
     constexpr int xctoi(char ch);
     constexpr int dctoi(char ch);
     constexpr int octoi(char ch);
+    constexpr char to_lower(char ch);
+    constexpr char to_upper(char ch);
 
     std::string to_ascii_lowercase(std::string_view str);
     std::string to_ascii_uppercase(std::string_view str);
@@ -87,21 +89,27 @@ namespace yuki {
         return -1;
     }
 
+    inline constexpr char to_lower(char ch)
+    {
+        return ch >= 'A' && ch <= 'Z' ? (ch | (1 << 5)) : ch;
+    }
+
+    inline constexpr char to_upper(char ch)
+    {
+        return ch >= 'a' && ch <= 'z' ? (ch & ~(1 << 5)) : ch;
+    }
+
     inline std::string to_ascii_lowercase(std::string_view str)
     {
         std::string ret { str };
-        std::transform(ret.cbegin(), ret.cend(), ret.begin(), [](char ch) -> char {
-            return ch >= 'A' && ch <= 'Z' ? (ch | (1 << 5)) : ch;
-        });
+        std::transform(ret.cbegin(), ret.cend(), ret.begin(), to_lower);
         return ret;
     }
 
     inline std::string to_ascii_uppercase(std::string_view str)
     {
         std::string ret { str };
-        std::transform(ret.cbegin(), ret.cend(), ret.begin(), [](char ch) -> char {
-            return ch >= 'a' && ch <= 'z' ? (ch & ~(1 << 5)) : ch;
-        });
+        std::transform(ret.cbegin(), ret.cend(), ret.begin(), to_upper);
         return ret;
     }
 
