@@ -3,9 +3,15 @@
 #include "defines.hpp"
 #include "pointer.hpp"
 #include "protect.hpp"
+#include "str.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
+#include <optional>
+#include <span>
+#include <sstream>
+#include <string>
 #include <vector>
 
 namespace yuki {
@@ -13,6 +19,9 @@ namespace yuki {
     Pointer get_vfunc(Pointer vtable, std::size_t index);
     std::size_t get_vtable_length(Pointer vtable);
     std::vector<Pointer> clone_vtable(Pointer vtable, bool include_rtti = true, std::size_t max_count = static_cast<std::size_t>(-1));
+    Pointer pattern_scan(Pointer begin, std::size_t size, std::span<const std::optional<std::uint8_t>> byte_array);
+    std::vector<std::optional<std::uint8_t>> pattern_to_bytes(std::string_view pattern, char wildcard);
+    std::string address_to_ida_pattern(Pointer address, std::size_t size);
 
     YUKI_FORCE_INLINE bool is_bad_read_ptr(Pointer ptr)
     {
@@ -83,4 +92,81 @@ namespace yuki {
 
         return ret;
     }
+
+    inline Pointer pattern_scan(Pointer begin, std::size_t size, std::span<const std::optional<std::uint8_t>> byte_array)
+    {
+        if (!begin || size == 0) {
+            return nullptr;
+        }
+
+        auto start = begin.as<const std::uint8_t*>();
+        const auto end = start + size;
+
+        for (; start != end; ++start) {
+            bool found = true;
+
+            for (std::size_t i = 0; i < byte_array.size(); ++i) {
+                if (start + i == end) {
+                    return nullptr;
+                }
+
+                if (const auto& cur = byte_array[i]; cur.has_value() && *cur != start[i]) {
+                    found = false;
+                    break;
+                }
+            }
+
+            if (found) {
+                return start;
+            }
+        }
+
+        return nullptr;
+    }
+
+    inline std::vector<std::optional<std::uint8_t>> pattern_to_bytes(std::string_view pattern, char wildcard = '?')
+    {
+        std::vector<std::optional<std::uint8_t>> ret;
+
+        for (auto it = pattern.cbegin(), end = pattern.cend(); it != end; ++it) {
+            if (*it == ' ') {
+                continue;
+            }
+
+            if (*it == wildcard) {
+                if (++it != end) {
+                    ++it;
+                }
+
+                ret.emplace_back(std::nullopt);
+            } else if (it + 1 != end) {
+                const auto first = xctoi(*it++);
+                const auto second = xctoi(*it++);
+
+                ret.emplace_back(static_cast<std::uint8_t>(first << 4 | second));
+            } else {
+                return {};
+            }
+        }
+
+        return ret;
+    }
+
+    inline std::string address_to_ida_pattern(Pointer address, std::size_t size)
+    {
+        auto bytes = address.as<const std::uint8_t*>();
+
+        std::stringstream ida_pattern;
+        ida_pattern << std::hex << std::setfill('0');
+
+        for (std::size_t i = 0; i < size; ++i) {
+            ida_pattern << std::setw(2) << static_cast<std::int32_t>(bytes[i]);
+            if (i + 1 != size) {
+                ida_pattern << ' ';
+            }
+        }
+
+        return ida_pattern.str();
+    }
+
 }
