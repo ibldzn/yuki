@@ -32,7 +32,7 @@ namespace yuki {
 
     YUKI_FORCE_INLINE IATHook::IATHook(fnv1a::type mod_hash, fnv1a::type api_hash)
         : m_hooked(false)
-        , m_original(nullptr)
+        , m_original(Module::find(mod_hash).get_proc_addr(api_hash))
         , m_mod_hash(mod_hash)
         , m_api_hash(api_hash)
         , m_thunk_data(nullptr)
@@ -51,7 +51,6 @@ namespace yuki {
             return false;
         }
 
-        m_original = Module::find(m_mod_hash).get_proc_addr(m_api_hash);
         if (!m_original) {
             return false;
         }
