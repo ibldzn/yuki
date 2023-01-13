@@ -6,8 +6,11 @@
 
 #include "defines.hpp"
 #include "fnv1a.hpp"
+#include "mem.hpp"
 #include "pointer.hpp"
 #include "str.hpp"
+#include <optional>
+#include <span>
 #include <string_view>
 
 #pragma push_macro("WIN32_LEAN_AND_MEAN")
@@ -48,6 +51,18 @@ namespace yuki {
 
         Section get_section_info(fnv1a::type sect_name_hash) const;
         Pointer get_proc_addr(fnv1a::type proc_name_hash) const;
+
+        Pointer pattern_scan(std::span<const std::optional<std::uint8_t>> byte_array);
+        Pointer pattern_scan(fnv1a::type sect_name_hash, std::span<const std::optional<std::uint8_t>> byte_array);
+
+        Pointer find_string(
+            fnv1a::type string_hash,
+            fnv1a::type section_to_search = FNV_CT(".rdata"),
+            std::size_t max_length = static_cast<std::size_t>(-1)
+        );
+
+        std::vector<Pointer> get_xrefs_to(Pointer target);
+        std::vector<Pointer> get_xrefs_to(Pointer target, Pointer start, std::size_t size);
 
         template <typename Fn>
         static void enum_modules(Fn fn);
@@ -214,6 +229,98 @@ namespace yuki {
         return nullptr;
     }
 
+    inline Pointer Module::pattern_scan(std::span<const std::optional<std::uint8_t>> byte_array)
+    {
+        const auto nt = get_nt_headers();
+        if (!nt) {
+            return nullptr;
+        }
+        return yuki::pattern_scan(get(), nt->OptionalHeader.SizeOfImage, byte_array);
+    }
+
+    inline Pointer Module::pattern_scan(fnv1a::type sect_name_hash, std::span<const std::optional<std::uint8_t>> byte_array)
+    {
+        const auto [sect_rva, sect_size] = get_section_info(sect_name_hash);
+        if (!sect_rva || !sect_size) {
+            return nullptr;
+        }
+        return yuki::pattern_scan(get().offset(sect_rva.as<std::ptrdiff_t>()), sect_size, byte_array);
+    }
+
+    inline Pointer Module::find_string(fnv1a::type string_hash, fnv1a::type section_to_search, std::size_t max_length)
+    {
+        const auto [sect_start, sect_size] = get_section_info(section_to_search);
+        if (!sect_start || !sect_size) {
+            return nullptr;
+        }
+
+        auto begin = sect_start.as<const byte*>();
+        const auto end = begin + sect_size;
+        const auto have_max_length = max_length != static_cast<std::size_t>(-1);
+
+        for (; begin < end; ++begin) {
+            const Pointer cur = begin;
+
+            const auto str = have_max_length
+                ? std::string_view { cur.as<const char*>(), cur.offset(static_cast<std::ptrdiff_t>(max_length)).as<const char*>() }
+                : std::string_view { cur.as<const char*>() };
+
+            if (string_hash == FNV_RT(str)) {
+                return cur;
+            }
+
+            begin += str.length();
+        }
+
+        return nullptr;
+    }
+
+    inline std::vector<Pointer> Module::get_xrefs_to(Pointer target)
+    {
+        const auto nt = get_nt_headers();
+        if (!nt) {
+            return {};
+        }
+        return get_xrefs_to(target, get(), nt->OptionalHeader.SizeOfImage);
+    }
+
+    inline std::vector<Pointer> Module::get_xrefs_to(Pointer target, Pointer start, std::size_t size)
+    {
+        std::vector<Pointer> ret;
+
+#if defined(YUKI_ARCH_X86_64)
+        auto begin = start.as<const byte*>();
+        const auto end = begin + size - sizeof(std::int32_t);
+
+        for (; begin && begin < end; ++begin) {
+            if (const Pointer cur = begin;
+                cur.relative() == target
+                || get().offset(cur.as<const std::int32_t&>()) == target) {
+                ret.push_back(cur);
+                begin += sizeof(std::int32_t) - 1;
+            }
+        }
+#else
+        const auto ida_pattern = address_to_ida_pattern(&target, sizeof(Pointer));
+        const auto bytes = pattern_to_bytes(ida_pattern);
+
+        auto begin = start.as<std::uintptr_t>();
+        const auto end = begin + size;
+
+        while (begin && begin < end) {
+            const auto xref = yuki::pattern_scan(begin, size, bytes);
+            if (!xref) {
+                break;
+            }
+
+            ret.push_back(xref);
+            begin = xref.offset(sizeof(void*)).as<decltype(begin)>();
+        }
+#endif
+
+        return ret;
+    }
+
     template <typename Fn>
     YUKI_FORCE_INLINE void Module::enum_modules(Fn fn)
     {
@@ -334,6 +441,7 @@ namespace yuki {
         Module forward_module { nullptr };
 
         enum_modules([&](std::string_view mod_name, Pointer mod_address) {
+            // remove module's file extension
             if (const std::size_t dot_index = mod_name.find_last_of('.'); dot_index != std::string_view::npos) [[YUKI_ATTR_LIKELY]] {
                 mod_name = mod_name.substr(0, dot_index);
             }
