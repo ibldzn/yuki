@@ -52,17 +52,17 @@ namespace yuki {
         Section get_section_info(fnv1a::type sect_name_hash) const;
         Pointer get_proc_addr(fnv1a::type proc_name_hash) const;
 
-        Pointer pattern_scan(std::span<const std::optional<std::uint8_t>> byte_array);
-        Pointer pattern_scan(fnv1a::type sect_name_hash, std::span<const std::optional<std::uint8_t>> byte_array);
+        Pointer pattern_scan(std::span<const std::optional<std::uint8_t>> byte_array) const;
+        Pointer pattern_scan(fnv1a::type sect_name_hash, std::span<const std::optional<std::uint8_t>> byte_array) const;
 
         Pointer find_string(
             fnv1a::type string_hash,
             fnv1a::type section_to_search = FNV_CT(".rdata"),
             std::size_t max_length = static_cast<std::size_t>(-1)
-        );
+        ) const;
 
-        std::vector<Pointer> get_xrefs_to(Pointer target);
-        std::vector<Pointer> get_xrefs_to(Pointer target, Pointer start, std::size_t size);
+        std::vector<Pointer> get_xrefs_to(Pointer target) const;
+        std::vector<Pointer> get_xrefs_to(Pointer target, Pointer start, std::size_t size) const;
 
         template <typename Fn>
         static void enum_modules(Fn fn);
@@ -229,25 +229,25 @@ namespace yuki {
         return nullptr;
     }
 
-    inline Pointer Module::pattern_scan(std::span<const std::optional<std::uint8_t>> byte_array)
+    inline Pointer Module::pattern_scan(std::span<const std::optional<std::uint8_t>> byte_array) const
     {
         const auto nt = get_nt_headers();
         if (!nt) {
             return nullptr;
         }
-        return yuki::pattern_scan(get(), nt->OptionalHeader.SizeOfImage, byte_array);
+        return yuki::pattern_scan(m_base_address, nt->OptionalHeader.SizeOfImage, byte_array);
     }
 
-    inline Pointer Module::pattern_scan(fnv1a::type sect_name_hash, std::span<const std::optional<std::uint8_t>> byte_array)
+    inline Pointer Module::pattern_scan(fnv1a::type sect_name_hash, std::span<const std::optional<std::uint8_t>> byte_array) const
     {
         const auto [sect_rva, sect_size] = get_section_info(sect_name_hash);
         if (!sect_rva || !sect_size) {
             return nullptr;
         }
-        return yuki::pattern_scan(get().offset(sect_rva.as<std::ptrdiff_t>()), sect_size, byte_array);
+        return yuki::pattern_scan(m_base_address.offset(sect_rva.as<std::ptrdiff_t>()), sect_size, byte_array);
     }
 
-    inline Pointer Module::find_string(fnv1a::type string_hash, fnv1a::type section_to_search, std::size_t max_length)
+    inline Pointer Module::find_string(fnv1a::type string_hash, fnv1a::type section_to_search, std::size_t max_length) const
     {
         const auto [sect_start, sect_size] = get_section_info(section_to_search);
         if (!sect_start || !sect_size) {
@@ -275,16 +275,16 @@ namespace yuki {
         return nullptr;
     }
 
-    inline std::vector<Pointer> Module::get_xrefs_to(Pointer target)
+    inline std::vector<Pointer> Module::get_xrefs_to(Pointer target) const
     {
         const auto nt = get_nt_headers();
         if (!nt) {
             return {};
         }
-        return get_xrefs_to(target, get(), nt->OptionalHeader.SizeOfImage);
+        return get_xrefs_to(target, m_base_address, nt->OptionalHeader.SizeOfImage);
     }
 
-    inline std::vector<Pointer> Module::get_xrefs_to(Pointer target, Pointer start, std::size_t size)
+    inline std::vector<Pointer> Module::get_xrefs_to(Pointer target, Pointer start, std::size_t size) const
     {
         std::vector<Pointer> ret;
 
@@ -295,7 +295,7 @@ namespace yuki {
         for (; begin && begin < end; ++begin) {
             if (const Pointer cur = begin;
                 cur.relative() == target
-                || get().offset(cur.as<const std::int32_t&>()) == target) {
+                || m_base_address.offset(cur.as<const std::int32_t&>()) == target) {
                 ret.push_back(cur);
                 begin += sizeof(std::int32_t) - 1;
             }
