@@ -142,10 +142,28 @@ namespace yuki {
             return {};
         }
 
+        // @MSDN: https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_section_header
+        //
+        // An 8-byte, null-padded UTF-8 string. There is no terminating null character
+        // if the string is exactly eight characters long. For longer names, this member
+        // contains a forward slash (/) followed by an ASCII representation of a decimal
+        // number that is an offset into the string table. Executable images do not use
+        // a string table and do not support section names longer than eight characters.
+        constexpr auto get_sect_name = [](BYTE* sect_name) {
+            int i = 0;
+            for (; i < 8; ++i) {
+                if (sect_name[i] == '\0') {
+                    break;
+                }
+            }
+            return std::string_view {
+                reinterpret_cast<char*>(sect_name), reinterpret_cast<char*>(sect_name) + i
+            };
+        };
+
         IMAGE_SECTION_HEADER* sect_header = IMAGE_FIRST_SECTION(nt);
         for (unsigned short i = 0, sect_count = nt->FileHeader.NumberOfSections; i < sect_count; ++i, ++sect_header) {
-            const std::string_view sect_name = reinterpret_cast<char*>(sect_header->Name);
-            if (FNV_RT(sect_name) == sect_name_hash) {
+            if (FNV_RT(get_sect_name(sect_header->Name)) == sect_name_hash) {
                 return { sect_header->PointerToRawData, sect_header->SizeOfRawData };
             }
         }
