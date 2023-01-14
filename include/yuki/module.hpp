@@ -249,12 +249,12 @@ namespace yuki {
 
     inline Pointer Module::find_string(fnv1a::type string_hash, fnv1a::type section_to_search, std::size_t max_length) const
     {
-        const auto [sect_start, sect_size] = get_section_info(section_to_search);
-        if (!sect_start || !sect_size) {
+        const auto [sect_rva, sect_size] = get_section_info(section_to_search);
+        if (!sect_rva || !sect_size) {
             return nullptr;
         }
 
-        auto begin = sect_start.as<const byte*>();
+        auto begin = m_base_address.offset(sect_rva.as<std::ptrdiff_t>()).as<const byte*>();
         const auto end = begin + sect_size;
         const auto have_max_length = max_length != static_cast<std::size_t>(-1);
 
@@ -295,7 +295,7 @@ namespace yuki {
         for (; begin && begin < end; ++begin) {
             if (const Pointer cur = begin;
                 cur.relative() == target
-                || m_base_address.offset(cur.as<const std::int32_t&>()) == target) {
+                || m_base_address.offset(cur.deref<std::int32_t>()) == target) {
                 ret.push_back(cur);
                 begin += sizeof(std::int32_t) - 1;
             }
@@ -314,7 +314,7 @@ namespace yuki {
             }
 
             ret.push_back(xref);
-            begin = xref.offset(sizeof(void*)).as<decltype(begin)>();
+            begin = xref.offset(Pointer).as<decltype(begin)>();
         }
 #endif
 
