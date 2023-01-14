@@ -328,7 +328,7 @@ namespace yuki {
             }
 
             ret.push_back(xref);
-            begin = xref.offset(Pointer).as<decltype(begin)>();
+            begin = xref.offset(sizeof(Pointer)).as<decltype(begin)>();
         }
 #endif
 
@@ -458,15 +458,16 @@ namespace yuki {
 
         const std::string forward_module_name { forward_str.substr(0, dot_index) };
         const std::string_view forward_proc_name = forward_str.substr(dot_index + 1);
-
         const bool by_ordinal = !forward_proc_name.empty() && forward_proc_name[0] == '#';
-        const unsigned short ordinal = str_to_ushort(forward_proc_name.substr(1));
 
         Module forward_module = find_or_load(forward_module_name.c_str(), false);
         if (!forward_module) {
             return nullptr;
         }
 
-        return forward_module.get_proc_addr(by_ordinal ? ordinal : FNV_RT(forward_proc_name));
+        return forward_module.get_proc_addr(
+            by_ordinal ? str_to_ushort(forward_proc_name.substr(1))
+                       : FNV_RT(forward_proc_name)
+        );
     }
 }
