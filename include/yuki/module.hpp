@@ -428,39 +428,10 @@ namespace yuki {
             return export_addr;
         }
 
-        const std::string_view forward_module_name = forward_str.substr(0, dot_index);
+        const std::string forward_module_name { forward_str.substr(0, dot_index) };
         const std::string_view forward_proc_name = forward_str.substr(dot_index + 1);
 
-        const auto forward_module_name_hash = fnv1a::get_with(
-            forward_module_name,
-            [](byte b) -> byte {
-                return b >= 'A' && b <= 'Z' ? (b | (1 << 5)) : b;
-            }
-        );
-
-        Module forward_module { nullptr };
-
-        enum_modules([&](std::string_view mod_name, Pointer mod_address) {
-            // remove module's file extension
-            if (const std::size_t dot_index = mod_name.find_last_of('.'); dot_index != std::string_view::npos) [[YUKI_ATTR_LIKELY]] {
-                mod_name = mod_name.substr(0, dot_index);
-            }
-
-            const auto hash = fnv1a::get_with(
-                mod_name,
-                [](byte b) -> byte {
-                    return b >= 'A' && b <= 'Z' ? (b | (1 << 5)) : b;
-                }
-            );
-
-            if (forward_module_name_hash == hash) {
-                forward_module = mod_address;
-                return true;
-            }
-
-            return false;
-        });
-
+        Module forward_module = find_or_load(forward_module_name.c_str());
         if (!forward_module) {
             return nullptr;
         }
