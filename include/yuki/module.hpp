@@ -206,6 +206,20 @@ namespace yuki {
             return nullptr;
         }
 
+        // if it is by ordinal
+        if (proc_name_hash <= static_cast<unsigned short>(-1)) {
+            const auto proc_addr = m_base_address.offset(funcs[proc_name_hash - ied->Base]).as<std::uintptr_t>();
+
+            if (
+                proc_addr >= exp_base.as<std::uintptr_t>()
+                && proc_addr < exp_base.offset(exp_dir->Size).as<std::uintptr_t>()
+            ) {
+                return handle_forwarded_export(proc_addr);
+            }
+
+            return proc_addr;
+        }
+
         for (unsigned long i = 0, num_of_names = ied->NumberOfNames; i < num_of_names; ++i) {
             const std::string_view proc_name = m_base_address.offset(names[i]).as<const char*>();
             if (FNV_RT(proc_name) != proc_name_hash) {
@@ -419,8 +433,22 @@ namespace yuki {
 
     YUKI_FORCE_INLINE Pointer Module::handle_forwarded_export(Pointer export_addr)
     {
+        static constexpr auto str_to_ushort = [](std::string_view str) {
+            unsigned short res = 0;
+
+            for (const char ch : str) {
+                const int num = dctoi(ch);
+                if (num == -1) {
+                    break;
+                }
+                res = res * 10 + static_cast<decltype(res)>(num);
+            }
+
+            return res;
+        };
+
         const std::string_view forward_str = export_addr.as<const char*>();
-        const std::size_t dot_index = forward_str.find('.');
+        const std::size_t dot_index = forward_str.find_last_of('.');
 
         if (dot_index == std::string_view::npos) [[YUKI_ATTR_UNLIKELY]] {
             // unlikely to happen
@@ -431,11 +459,14 @@ namespace yuki {
         const std::string forward_module_name { forward_str.substr(0, dot_index) };
         const std::string_view forward_proc_name = forward_str.substr(dot_index + 1);
 
-        Module forward_module = find_or_load(forward_module_name.c_str());
+        const bool by_ordinal = !forward_proc_name.empty() && forward_proc_name[0] == '#';
+        const unsigned short ordinal = str_to_ushort(forward_proc_name.substr(1));
+
+        Module forward_module = find_or_load(forward_module_name.c_str(), false);
         if (!forward_module) {
             return nullptr;
         }
 
-        return forward_module.get_proc_addr(FNV_RT(forward_proc_name));
+        return forward_module.get_proc_addr(by_ordinal ? ordinal : FNV_RT(forward_proc_name));
     }
 }
