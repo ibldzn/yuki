@@ -35,6 +35,9 @@ namespace yuki {
         template <typename T>
         T as() const;
 
+        template <typename T>
+        T deref() const;
+
     private:
         std::uintptr_t m_ptr = 0;
     };
@@ -71,7 +74,7 @@ namespace yuki {
     YUKI_FORCE_INLINE Pointer Pointer::relative() const
     {
         constexpr auto instruction_size = 4;
-        const auto displacement = as<const std::int32_t&>();
+        const auto displacement = deref<std::int32_t>();
 
         return offset(instruction_size + displacement);
     }
@@ -82,7 +85,7 @@ namespace yuki {
     }
 
     template <typename Fn>
-    constexpr Pointer Pointer::get_or_else(Fn fn) const
+    YUKI_FORCE_INLINE constexpr Pointer Pointer::get_or_else(Fn fn) const
     {
         if (!m_ptr) {
             return fn();
@@ -90,7 +93,7 @@ namespace yuki {
         return m_ptr;
     }
 
-    constexpr Pointer Pointer::get_or(Pointer pointer) const
+    YUKI_FORCE_INLINE constexpr Pointer Pointer::get_or(Pointer pointer) const
     {
         if (!m_ptr) {
             return pointer;
@@ -109,5 +112,11 @@ namespace yuki {
         } else {
             return static_cast<T>(m_ptr);
         }
+    }
+
+    template <typename T>
+    YUKI_FORCE_INLINE T Pointer::deref() const
+    {
+        return as<std::add_lvalue_reference_t<T>>();
     }
 }
