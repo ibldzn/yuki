@@ -57,8 +57,8 @@ namespace yuki {
 
         Pointer find_string(
             fnv1a::type string_hash,
-            fnv1a::type section_to_search = FNV_CT(".rdata"),
-            std::size_t max_length = static_cast<std::size_t>(-1)
+            std::size_t max_length = static_cast<std::size_t>(-1),
+            fnv1a::type section_to_search = FNV_CT(".rdata")
         ) const;
 
         std::vector<Pointer> get_xrefs_to(Pointer target) const;
@@ -261,7 +261,11 @@ namespace yuki {
         return yuki::pattern_scan(m_base_address.offset(sect_rva.as<std::ptrdiff_t>()), sect_size, byte_array);
     }
 
-    inline Pointer Module::find_string(fnv1a::type string_hash, fnv1a::type section_to_search, std::size_t max_length) const
+    inline Pointer Module::find_string(
+        fnv1a::type string_hash,
+        std::size_t max_length,
+        fnv1a::type section_to_search
+    ) const
     {
         const auto [sect_rva, sect_size] = get_section_info(section_to_search);
         if (!sect_rva || !sect_size) {
