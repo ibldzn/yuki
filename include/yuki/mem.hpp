@@ -134,7 +134,9 @@ namespace yuki {
             }
 
             if (*it == wildcard) {
-                if (++it != end) {
+                ++it;
+
+                if (it != end && *it == wildcard) {
                     ++it;
                 }
 
