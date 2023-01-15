@@ -64,6 +64,12 @@ namespace yuki {
         std::vector<Pointer> get_xrefs_to(Pointer target) const;
         std::vector<Pointer> get_xrefs_to(Pointer target, Pointer start, std::size_t size) const;
 
+        std::vector<Pointer> get_string_xrefs(
+            fnv1a::type string_hash,
+            std::size_t max_length = static_cast<std::size_t>(-1),
+            fnv1a::type section_to_search = FNV_CT(".rdata")
+        ) const;
+
         template <typename Fn>
         static void enum_modules(Fn fn);
         static Module find(std::string_view module_name, bool lowercase = true);
@@ -337,6 +343,19 @@ namespace yuki {
 #endif
 
         return ret;
+    }
+
+    inline std::vector<Pointer> Module::get_string_xrefs(
+        fnv1a::type string_hash,
+        std::size_t max_length,
+        fnv1a::type section_to_search
+    ) const
+    {
+        const Pointer string = find_string(string_hash, max_length, section_to_search);
+        if (!string) {
+            return {};
+        }
+        return get_xrefs_to(string);
     }
 
     template <typename Fn>
