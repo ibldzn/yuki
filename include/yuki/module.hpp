@@ -174,15 +174,13 @@ namespace yuki {
         // number that is an offset into the string table. Executable images do not use
         // a string table and do not support section names longer than eight characters.
         constexpr auto get_sect_name = [](BYTE* sect_name) {
-            int i = 0;
+            std::size_t i = 0;
             for (; i < 8; ++i) {
                 if (sect_name[i] == '\0') {
                     break;
                 }
             }
-            return std::string_view {
-                reinterpret_cast<char*>(sect_name), reinterpret_cast<char*>(sect_name) + i
-            };
+            return std::string_view { reinterpret_cast<const char*>(sect_name), i };
         };
 
         IMAGE_SECTION_HEADER* sect_header = IMAGE_FIRST_SECTION(nt);
