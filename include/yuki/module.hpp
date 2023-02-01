@@ -62,6 +62,7 @@ namespace yuki {
         ) const;
 
         std::vector<Pointer> get_xrefs_to(Pointer target) const;
+        std::vector<Pointer> get_xrefs_to(Pointer target, fnv1a::type section_hash) const;
         std::vector<Pointer> get_xrefs_to(Pointer target, Pointer start, std::size_t size) const;
 
         std::vector<Pointer> get_string_xrefs(
@@ -69,6 +70,8 @@ namespace yuki {
             std::size_t max_length = static_cast<std::size_t>(-1),
             fnv1a::type section_to_search = FNV_CT(".rdata")
         ) const;
+
+        Pointer get_vtable_ptr(fnv1a::type type_descriptor_hash) const;
 
         template <typename Fn>
         static void enum_modules(Fn fn);
@@ -308,6 +311,15 @@ namespace yuki {
         return get_xrefs_to(target, m_base_address, nt->OptionalHeader.SizeOfImage);
     }
 
+    inline std::vector<Pointer> Module::get_xrefs_to(Pointer target, fnv1a::type section_hash) const
+    {
+        const auto [sect_rva, sect_size] = get_section_info(section_hash);
+        if (!sect_rva || !sect_size) {
+            return {};
+        }
+        return get_xrefs_to(target, m_base_address.offset(sect_rva.as<std::ptrdiff_t>()), sect_size);
+    }
+
     inline std::vector<Pointer> Module::get_xrefs_to(Pointer target, Pointer start, std::size_t size) const
     {
         std::vector<Pointer> ret;
@@ -356,6 +368,35 @@ namespace yuki {
             return {};
         }
         return get_xrefs_to(string);
+    }
+
+    inline Pointer Module::get_vtable_ptr(fnv1a::type type_descriptor_hash) const
+    {
+        Pointer rtti_type_desc = find_string(type_descriptor_hash, static_cast<std::size_t>(-1), FNV_CT(".data"));
+        if (!rtti_type_desc) {
+            return nullptr;
+        }
+
+        rtti_type_desc.self_offset(-static_cast<std::ptrdiff_t>(sizeof(Pointer)) * 2);
+
+        for (const auto& xref : get_xrefs_to(rtti_type_desc, FNV_CT(".rdata"))) {
+            const auto offset_from_class = xref.offset(-0x8).deref<std::int32_t>();
+            if (offset_from_class != 0) {
+                continue;
+            }
+
+            const auto object_locator = xref.offset(-0xC);
+            const auto bytes = pattern_to_bytes(address_to_ida_pattern(&object_locator, sizeof(Pointer)));
+
+            const auto vtable_address = pattern_scan(FNV_CT(".rdata"), bytes);
+            if (!vtable_address) {
+                return {};
+            }
+
+            return vtable_address.offset(sizeof(Pointer));
+        }
+
+        return nullptr;
     }
 
     template <typename Fn>
