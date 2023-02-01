@@ -289,7 +289,7 @@ namespace yuki {
             const Pointer cur = begin;
 
             const auto str = have_max_length
-                ? std::string_view { cur.as<const char*>(), cur.offset(static_cast<std::ptrdiff_t>(max_length)).as<const char*>() }
+                ? std::string_view { cur.as<const char*>(), max_length }
                 : std::string_view { cur.as<const char*>() };
 
             if (string_hash == FNV_RT(str)) {
@@ -336,7 +336,7 @@ namespace yuki {
                 begin += sizeof(std::int32_t) - 1;
             }
         }
-#else
+#elif defined(YUKI_ARCH_X86)
         const auto ida_pattern = address_to_ida_pattern(&target, sizeof(Pointer));
         const auto bytes = pattern_to_bytes(ida_pattern);
 
@@ -524,7 +524,7 @@ namespace yuki {
         const std::string_view forward_proc_name = forward_str.substr(dot_index + 1);
         const bool by_ordinal = !forward_proc_name.empty() && forward_proc_name[0] == '#';
 
-        Module forward_module = find_or_load(forward_module_name.c_str(), false);
+        const Module forward_module = find_or_load(forward_module_name.c_str(), false);
         if (!forward_module) {
             return nullptr;
         }
