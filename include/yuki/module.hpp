@@ -331,7 +331,7 @@ namespace yuki {
                 cur.relative() == target
                 || m_base_address.offset(cur.deref<std::int32_t>()) == target) {
                 ret.push_back(cur);
-                begin += sizeof(std::int32_t) - 1;
+                begin += sizeof(std::int32_t);
             }
         }
 #elif defined(YUKI_ARCH_X86)
